@@ -633,40 +633,33 @@
       }
     }
 
-    // 開始旋轉 (已修正精準角度判定)
+    // 開始旋轉 (修復 targetWinningIndex 變數重複宣告問題)
     function spinWheel() {
       if (isSpinning) return;
       if (items.length === 0) {
         showToast("請先輸入名稱清單！");
         return;
       }
-      // ----------------【新增：過濾黑名單】----------------
-        // 找出所有「不在黑名單中」的候選索引
-        const validIndices = items
-          .map((item, index) => ({ item, index }))
-          .filter(obj => !BLACKLIST.includes(obj.item))
-          .map(obj => obj.index);
-
-        // 如果清單中的所有項目都在黑名單裡，則無法抽籤
-        if (validIndices.length === 0) {
-          showToast("清單中的項目有誤，無法抽籤！");
-          return;
-        }
-
-        // 從符合條件的索引中隨機挑選一個
-        const randomIndex = Math.floor(Math.random() * validIndices.length);
-        const targetWinningIndex = validIndices[randomIndex];
       
-      // 1. 隨機選出中獎索引
-      const targetWinningIndex = Math.floor(Math.random() * items.length);
+      // 找出所有「不在黑名單中」的候選索引
+      const validIndices = items
+        .map((item, index) => ({ item, index }))
+        .filter(obj => !BLACKLIST.includes(obj.item))
+        .map(obj => obj.index);
+
+      // 如果清單中的所有項目都在黑名單裡，則無法抽籤
+      if (validIndices.length === 0) {
+        showToast("清單中的項目皆無法被選中，無法抽籤！");
+        return;
+      }
+
+      // 從符合條件的索引中隨機挑選一個
+      const randomIndex = Math.floor(Math.random() * validIndices.length);
+      const targetWinningIndex = validIndices[randomIndex];
+      
       const segmentAngle = (2 * Math.PI) / items.length;
 
-      // 2. 計算目標角度：
-      // 指針位於正右方 (0 rad/360 度)。
-      // 扇形 i 的中心角度為 currentRotation + i * segmentAngle + segmentAngle / 2
-      // 要使第 targetWinningIndex 個扇形中心剛好落在 0 度，需要滿足：
-      // (currentRotation + targetWinningIndex * segmentAngle + segmentAngle / 2) % 2π = 0
-      // 亦即 requiredRotation = - (targetWinningIndex * segmentAngle + segmentAngle / 2)
+      // 計算目標角度
       const targetAngleAtPointer = -(targetWinningIndex * segmentAngle + segmentAngle / 2);
       
       // 確保順時針旋轉多圈 (5 ~ 7 圈)
@@ -788,7 +781,10 @@
 
     document.addEventListener('keydown', (e) => {
       if (document.activeElement === itemsText || document.activeElement.tagName === 'INPUT') {
-        if (e.key === 'Escape') itemsText.blur();
+        if (e.key === 'Escape') {
+          itemsText.blur();
+          onDoneEditing();
+        }
         return;
       }
 
