@@ -661,8 +661,8 @@
       // 計算每一個扇形的角度大小
       const segmentAngle = (2 * Math.PI) / items.length;
 
-      // 1. 保留極小的安全距離（只保留 3% 的寬度，避免剛好壓在線頭上）
-      const safePadding = segmentAngle * 0.03; 
+      // 1. 保留極小的安全距離（只保留 1% 的寬度，避免剛好壓在線頭上）
+      const safePadding = segmentAngle * 0.01; 
 
       // 2. 計算最大可偏移半徑（讓指針能在扇形內部 94% 的大範圍內隨機落在任何位置）
       const maxOffset = (segmentAngle / 2) - safePadding;
