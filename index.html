@@ -634,13 +634,14 @@
     }
 
     // 開始旋轉 (修復 targetWinningIndex 變數重複宣告問題)
+    // 開始旋轉 (新增指針隨機角度與防邊界落點)
     function spinWheel() {
       if (isSpinning) return;
       if (items.length === 0) {
         showToast("請先輸入名稱清單！");
         return;
       }
-      
+  
       // 找出所有「不在黑名單中」的候選索引
       const validIndices = items
         .map((item, index) => ({ item, index }))
@@ -653,19 +654,26 @@
         return;
       }
 
-      // 從符合條件的索引中隨機挑選一個
+      // 從符合條件的索引中隨機挑選一個中獎者
       const randomIndex = Math.floor(Math.random() * validIndices.length);
       const targetWinningIndex = validIndices[randomIndex];
-      
+  
+      // 計算每一個扇形的角度大小
       const segmentAngle = (2 * Math.PI) / items.length;
 
-      // 計算目標角度
-      const targetAngleAtPointer = -(targetWinningIndex * segmentAngle + segmentAngle / 2);
-      
+      // 1. 設定邊界安全距離（避免指針剛好停在兩扇形中間的分隔線上，這裡取扇形寬度的 10%）
+      const safePadding = segmentAngle * 0.1; 
+
+      // 2. 在安全範圍內計算隨機偏移量
+      const randomOffset = (Math.random() - 0.5) * (segmentAngle - safePadding * 2);
+
+      // 3. 計算目標角度：中心點角度 + 隨機偏移角度
+      const targetAngleAtPointer = -(targetWinningIndex * segmentAngle + segmentAngle / 2 + randomOffset);
+  
       // 確保順時針旋轉多圈 (5 ~ 7 圈)
       const currentMod = currentRotation % (2 * Math.PI);
       const extraTurns = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI;
-      
+  
       // 計算最終精準旋轉角度
       let deltaAngle = (targetAngleAtPointer - currentMod) % (2 * Math.PI);
       if (deltaAngle <= 0) {
