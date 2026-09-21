@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>隨機抽籤輪盤 - 線上隨機挑選名稱工具</title>
-  <!-- PeerJS 用於即時直播連線 (備援免伺服器架構) -->
+  <!-- PeerJS 用於即時直播連線 -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -97,7 +97,7 @@
       font-size: 13px;
     }
 
-    /* 主要內容區（轉盤 + 編輯區） */
+    /* 主要內容區 */
     .container {
       display: flex;
       flex-direction: row;
@@ -124,6 +124,34 @@
       height: 450px;
       border-radius: 50%;
     }
+
+    /* 空白清單提示框 (類似圖示) */
+    .empty-state-card {
+      display: none;
+      width: 440px;
+      height: 240px;
+      border: 1px solid #b0b0b0;
+      border-radius: 16px;
+      background: #ffffff;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    }
+    .empty-state-title {
+      font-size: 38px;
+      font-weight: 500;
+      color: #222222;
+      letter-spacing: 1px;
+    }
+    .empty-state-arrows {
+      font-size: 32px;
+      color: #333333;
+      letter-spacing: 12px;
+      font-weight: bold;
+    }
+
     /* 右側指標 (紅色三角形) */
     .pointer {
       position: absolute;
@@ -157,12 +185,8 @@
       z-index: 20;
       transition: background-color 0.2s, transform 0.1s;
     }
-    .center-btn:hover {
-      background-color: rgba(20, 30, 40, 0.95);
-    }
-    .center-btn:active {
-      transform: scale(0.98);
-    }
+    .center-btn:hover { background-color: rgba(20, 30, 40, 0.95); }
+    .center-btn:active { transform: scale(0.98); }
 
     /* 右側名單輸入框與選單 */
     .controls-wrapper {
@@ -182,6 +206,9 @@
       outline: none;
       font-family: inherit;
     }
+    textarea::placeholder {
+      color: #666;
+    }
     .action-btns {
       display: flex;
       justify-content: space-between;
@@ -200,7 +227,7 @@
     }
     .action-btn:hover { background-color: #f5f5f5; }
 
-    /* 快速鍵說明區 */
+    /* 快捷鍵說明區 */
     .shortcuts-guide {
       margin-top: 15px;
       display: flex;
@@ -317,7 +344,7 @@
 <body>
 
   <!-- 上方直播橫幅 -->
-  <div idlive-bar id="live-bar">
+  <div id="live-bar">
     <span style="color:#15803d; font-weight:bold;">🟢 您是主持人</span>
     <span>觀眾：<strong id="viewer-count">0</strong></span>
     <span>把這個連結分享給觀眾：</span>
@@ -341,13 +368,20 @@
   <!-- 主要轉盤與輸入區域 -->
   <div class="container">
     <div class="wheel-wrapper">
+      <!-- 轉盤元素 (清單非空時顯示) -->
       <canvas id="wheelCanvas" width="450" height="450"></canvas>
-      <div class="pointer"></div>
+      <div class="pointer" id="pointerEl"></div>
       <div class="center-btn" id="centerBtn" onclick="spinWheel()">按一下以旋轉</div>
+
+      <!-- 名單空白提示框 (清單空白時顯示) -->
+      <div class="empty-state-card" id="emptyStateCard">
+        <div class="empty-state-title">請輸入清單</div>
+        <div class="empty-state-arrows">&rarr; &rarr; &rarr;</div>
+      </div>
     </div>
 
     <div class="controls-wrapper">
-      <textarea id="itemsText" placeholder="每行輸入一個名稱..." oninput="updateWheelFromText()"></textarea>
+      <textarea id="itemsText" placeholder="請在這裡輸入人姓名，並用不同的行分隔。" oninput="updateWheelFromText()"></textarea>
       
       <div class="action-btns">
         <button class="action-btn" onclick="alert('已儲存目前標題設定！')">標題</button>
@@ -355,7 +389,7 @@
         <button class="action-btn" onclick="openHideModal()">隱藏...</button>
       </div>
 
-      <!-- 快捷鍵說明列 -->
+      <!-- 快速鍵說明列 -->
       <div class="shortcuts-guide">
         <div class="shortcut-item"><span class="key-badge">SPACE</span> 旋轉</div>
         <div class="shortcut-item"><span class="key-badge">X</span> 關閉橫幅</div>
@@ -426,8 +460,10 @@
 
     const canvas = document.getElementById('wheelCanvas');
     const ctx = canvas.getContext('2d');
-    const itemsText = document.getElementById('itemsText');
+    const pointerEl = document.getElementById('pointerEl');
     const centerBtn = document.getElementById('centerBtn');
+    const emptyStateCard = document.getElementById('emptyStateCard');
+    const itemsText = document.getElementById('itemsText');
 
     // 初始化
     window.onload = () => {
@@ -463,13 +499,30 @@
     // 從 Textarea 更新清單與繪製輪盤
     function updateWheelFromText() {
       const raw = itemsText.value.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-      items = raw.length > 0 ? raw : ["無選項"];
-      drawWheel();
-      if(isHost) broadcastState({ type: 'UPDATE_ITEMS', itemsText: itemsText.value });
+      items = raw;
+
+      if (items.length === 0) {
+        // 顯示空白提示方塊，隱藏轉盤與指針
+        canvas.style.display = 'none';
+        pointerEl.style.display = 'none';
+        centerBtn.style.display = 'none';
+        emptyStateCard.style.display = 'flex';
+      } else {
+        // 顯示轉盤與指針，隱藏提示方塊
+        canvas.style.display = 'block';
+        pointerEl.style.display = 'block';
+        centerBtn.style.display = 'flex';
+        emptyStateCard.style.display = 'none';
+        drawWheel();
+      }
+
+      if (isHost) broadcastState({ type: 'UPDATE_ITEMS', itemsText: itemsText.value });
     }
 
     // 繪製輪盤
     function drawWheel() {
+      if (items.length === 0) return;
+
       const numSegments = items.length;
       const arcSize = (2 * Math.PI) / numSegments;
       const centerX = canvas.width / 2;
@@ -504,7 +557,11 @@
 
     // 開始旋轉
     function spinWheel() {
-      if (isSpinning || items.length === 0) return;
+      if (isSpinning) return;
+      if (items.length === 0) {
+        showToast("請先輸入名稱清單！");
+        return;
+      }
 
       // 隨機計算目標獲勝索引 (包含 Mahon 秘密限制)
       let validIndices = [];
@@ -521,7 +578,6 @@
       
       // 計算旋轉角度
       const segmentAngle = (2 * Math.PI) / items.length;
-      // 右側 0 弧度為 3 點鐘方向，指標在右側，所以對齊 0
       const targetSegmentCenter = targetWinningIndex * segmentAngle + segmentAngle / 2;
       
       const extraTurns = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI; // 5~7 圈
@@ -546,7 +602,6 @@
       function animate(now) {
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        // Easing cubic-bezier (Ease Out)
         const easeOut = 1 - Math.pow(1 - progress, 4);
 
         currentRotation = startRotation + totalDelta * easeOut;
@@ -591,6 +646,11 @@
 
     // 隱藏項目 Modal 控制
     function openHideModal() {
+      if (items.length === 0) {
+        showToast("目前沒有選項可供隱藏");
+        return;
+      }
+
       const container = document.getElementById('hideListContainer');
       container.innerHTML = '';
       
@@ -627,7 +687,7 @@
       closeModal('hideModal');
     }
 
-    // 隱藏秘密限制開關（三擊中央按鈕）
+    // 隱藏秘密限制開關（連續 3 次點擊中央按鈕）
     centerBtn.addEventListener('click', () => {
       centerClickCount++;
       clearTimeout(clickTimer);
@@ -650,7 +710,6 @@
 
     // 鍵盤快捷鍵監聽
     document.addEventListener('keydown', (e) => {
-      // 若正在輸入文字區域則無視某些快捷鍵
       if (document.activeElement === itemsText && e.key !== 'Escape') return;
 
       const key = e.key.toUpperCase();
@@ -680,7 +739,7 @@
       }
     }
 
-    /* ---------------- 直播功能 logic (PeerJS P2P 實時廣播) ---------------- */
+    /* ---------------- 直播功能 logic (PeerJS P2P) ---------------- */
     function toggleLiveMode() {
       if (isHost) {
         stopLive();
@@ -703,7 +762,6 @@
         updateViewerCount();
 
         conn.on('open', () => {
-          // 初始化傳送現有狀態給新觀眾
           conn.send({ type: 'INIT', itemsText: itemsText.value });
         });
 
@@ -714,7 +772,7 @@
       });
 
       peer.on('error', (err) => {
-        alert("直播連線建立失敗，請檢查網路設定。");
+        alert("直播連線建立失敗，請檢查網絡連線。");
       });
     }
 
