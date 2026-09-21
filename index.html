@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>隨機抽籤輪盤 - 線上隨機挑選名稱工具</title>
+  <title>隨機抽籤輪盤</title>
   <!-- PeerJS 用於即時直播連線 -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
@@ -43,11 +43,11 @@
       background: #fff;
     }
     .btn-sm {
-      padding: 2px 8px;
+      padding: 3px 10px;
       font-size: 13px;
       border: 1px solid #ccc;
       background: #fff;
-      border-radius: 3px;
+      border-radius: 4px;
       cursor: pointer;
     }
     .btn-sm:hover { background: #f0f0f0; }
@@ -79,6 +79,7 @@
       color: white;
       cursor: pointer;
       font-weight: bold;
+      transition: background-color 0.2s;
     }
     .btn-start { background-color: #1677ff; }
     .btn-start:hover { background-color: #0958d9; }
@@ -107,6 +108,26 @@
       width: 100%;
       max-width: 1000px;
       padding: 0 20px;
+    }
+
+    /* 左側區域 (含動態標題與輪盤) */
+    .wheel-area-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 460px;
+    }
+
+    /* 輪盤上方自訂標題顯示區 */
+    .custom-title-display {
+      font-size: 26px;
+      font-weight: bold;
+      color: #1f2937;
+      margin-bottom: 15px;
+      min-height: 36px;
+      text-align: center;
+      word-break: break-all;
+      display: none;
     }
 
     /* 左側輪盤容器 */
@@ -199,12 +220,13 @@
       width: 100%;
       height: 380px;
       border: 1px solid #a0a0a0;
-      padding: 8px;
+      padding: 10px;
       font-size: 16px;
       line-height: 1.4;
       resize: vertical;
       outline: none;
       font-family: inherit;
+      border-radius: 4px;
     }
     textarea::placeholder {
       color: #666;
@@ -224,6 +246,7 @@
       font-size: 14px;
       color: #444;
       text-align: center;
+      transition: background-color 0.2s;
     }
     .action-btn:hover { background-color: #f5f5f5; }
 
@@ -290,6 +313,18 @@
       font-weight: bold;
       margin-bottom: 15px;
       color: #222;
+    }
+    .modal-input {
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      outline: none;
+    }
+    .modal-input:focus {
+      border-color: #1677ff;
     }
     .winner-display {
       font-size: 28px;
@@ -367,16 +402,22 @@
 
   <!-- 主要轉盤與輸入區域 -->
   <div class="container">
-    <div class="wheel-wrapper">
-      <!-- 轉盤元素 (清單非空時顯示) -->
-      <canvas id="wheelCanvas" width="450" height="450" style="display: none;"></canvas>
-      <div class="pointer" id="pointerEl" style="display: none;"></div>
-      <div class="center-btn" id="centerBtn" onclick="spinWheel()" style="display: none;">按一下以旋轉</div>
+    <div class="wheel-area-container">
+      <!-- 輪盤上方自訂標題顯示區 -->
+      <div id="customTitleDisplay" class="custom-title-display"></div>
 
-      <!-- 名單空白提示框 (預設顯示) -->
-      <div class="empty-state-card" id="emptyStateCard">
-        <div class="empty-state-title">請輸入清單</div>
-        <div class="empty-state-arrows">&rarr; &rarr; &rarr;</div>
+      <!-- 左側輪盤容器 -->
+      <div class="wheel-wrapper">
+        <!-- 轉盤元素 (清單非空時顯示) -->
+        <canvas id="wheelCanvas" width="450" height="450" style="display: none;"></canvas>
+        <div class="pointer" id="pointerEl" style="display: none;"></div>
+        <div class="center-btn" id="centerBtn" onclick="spinWheel()" style="display: none;">按一下以旋轉</div>
+
+        <!-- 名單空白提示框 (預設顯示) -->
+        <div class="empty-state-card" id="emptyStateCard">
+          <div class="empty-state-title">請輸入清單</div>
+          <div class="empty-state-arrows">&rarr; &rarr; &rarr;</div>
+        </div>
       </div>
     </div>
 
@@ -384,7 +425,7 @@
       <textarea id="itemsText" placeholder="請在這裡輸入人姓名，並用不同的行分隔。" oninput="updateWheelFromText()"></textarea>
       
       <div class="action-btns">
-        <button class="action-btn" onclick="alert('已儲存目前標題設定！')">標題</button>
+        <button class="action-btn" onclick="openTitleModal()">標題</button>
         <button class="action-btn" onclick="document.getElementById('itemsText').focus()">編輯</button>
         <button class="action-btn" onclick="openHideModal()">隱藏...</button>
       </div>
@@ -405,6 +446,18 @@
   <div class="description-section">
     <p>這是一個線上工具，可以隨機挑選名稱或物品。它也稱為隨機名稱選擇器，名稱輪，或在線輪盤賭。有時候，人們很難做出決定。然後製作現有選項或候選項的清單，然後從中隨機選取一個選項。在這種情況下，您可以使用我們的工具來做出決定。簡單又有趣。您可以修改文本區域中的名稱，每行放一個名稱。名稱將繪製在圓圈上。只需點擊圓形滾輪，它就會開始旋轉幾秒鐘。結果是隨機選取清單中的一個名稱。如果您使用桌面，我們也提供方便的快捷鍵。</p>
     <p>當你開始旋轉（點擊）時會發生什麼？此頁面上的程序將通過本地 javascript api 生成一個真正隨機的數字，並計算此數字以指向其中一個名稱。然後，圓形滾輪開始使用 CSS3-2D 方法旋轉。</p>
+  </div>
+
+  <!-- 標題設定 Modal -->
+  <div class="modal-overlay" id="titleModal">
+    <div class="modal-card">
+      <div class="modal-title">設定輪盤標題</div>
+      <input type="text" id="titleInput" class="modal-input" placeholder="請輸入標題 (例如：今天晚餐吃什麼？)" />
+      <div class="modal-footer">
+        <button class="btn-sm" style="padding:6px 12px;" onclick="closeModal('titleModal')">取消</button>
+        <button class="btn-main btn-start" style="padding:6px 12px; font-size:14px;" onclick="saveTitle()">確認設定</button>
+      </div>
+    </div>
   </div>
 
   <!-- 抽中結果 Modal -->
@@ -443,14 +496,10 @@
     const COLORS = ["#3b82f6", "#ef4444", "#84cc16", "#fef08a", "#e9d5ff", "#f9a8d4", "#f97316"];
 
     let items = [];
+    let customTitle = "";
     let currentRotation = 0; // 當前旋轉角度 (rad)
     let isSpinning = false;
     
-    // 隱藏限制邏輯 (Mahon 限制開關)
-    let secretConstraintActive = true; 
-    let centerClickCount = 0;
-    let clickTimer = null;
-
     // 直播 PeerJS 相關變數
     let peer = null;
     let liveConnections = [];
@@ -462,6 +511,8 @@
     const centerBtn = document.getElementById('centerBtn');
     const emptyStateCard = document.getElementById('emptyStateCard');
     const itemsText = document.getElementById('itemsText');
+    const customTitleDisplay = document.getElementById('customTitleDisplay');
+    const titleInput = document.getElementById('titleInput');
 
     // 初始化
     window.onload = () => {
@@ -492,6 +543,28 @@
         osc.start();
         osc.stop(audioCtx.currentTime + 0.04);
       } catch(e){}
+    }
+
+    // 標題設定邏輯
+    function openTitleModal() {
+      titleInput.value = customTitle;
+      document.getElementById('titleModal').style.display = 'flex';
+      setTimeout(() => titleInput.focus(), 100);
+    }
+
+    function saveTitle() {
+      customTitle = titleInput.value.trim();
+      if (customTitle) {
+        customTitleDisplay.innerText = customTitle;
+        customTitleDisplay.style.display = 'block';
+      } else {
+        customTitleDisplay.innerText = '';
+        customTitleDisplay.style.display = 'none';
+      }
+      closeModal('titleModal');
+      showToast(customTitle ? "標題已更新！" : "已清除標題");
+
+      if (isHost) broadcastState({ type: 'UPDATE_TITLE', title: customTitle });
     }
 
     // 從 Textarea 更新清單與繪製輪盤
@@ -561,18 +634,7 @@
         return;
       }
 
-      // 隨機計算目標獲勝索引 (包含 Mahon 秘密限制)
-      let validIndices = [];
-      items.forEach((item, index) => {
-        if (!secretConstraintActive || !item.toLowerCase().includes('mahon')) {
-          validIndices.push(index);
-        }
-      });
-
-      // 如果全都是 Mahon 且限制開啟，預設允許
-      if (validIndices.length === 0) validIndices = items.map((_, i) => i);
-
-      const targetWinningIndex = validIndices[Math.floor(Math.random() * validIndices.length)];
+      const targetWinningIndex = Math.floor(Math.random() * items.length);
       
       // 計算旋轉角度
       const segmentAngle = (2 * Math.PI) / items.length;
@@ -685,19 +747,6 @@
       closeModal('hideModal');
     }
 
-    // 隱藏秘密限制開關（連續 3 次點擊中央按鈕）
-    centerBtn.addEventListener('click', () => {
-      centerClickCount++;
-      clearTimeout(clickTimer);
-      clickTimer = setTimeout(() => {
-        if (centerClickCount >= 3) {
-          secretConstraintActive = !secretConstraintActive;
-          showToast(`秘密模式已${secretConstraintActive ? '開啟' : '關閉'}`);
-        }
-        centerClickCount = 0;
-      }, 400);
-    });
-
     // 吐司訊息
     function showToast(msg) {
       const toast = document.getElementById('toast');
@@ -708,7 +757,13 @@
 
     // 鍵盤快捷鍵監聽
     document.addEventListener('keydown', (e) => {
-      if (document.activeElement === itemsText && e.key !== 'Escape') return;
+      // 若正在文字區域或標題輸入框輸入，不觸發大部分快捷鍵
+      if ((document.activeElement === itemsText || document.activeElement === titleInput) && e.key !== 'Escape') {
+        if (e.key === 'Enter' && document.activeElement === titleInput) {
+          saveTitle();
+        }
+        return;
+      }
 
       const key = e.key.toUpperCase();
       if (e.code === 'Space') {
@@ -716,6 +771,8 @@
         spinWheel();
       } else if (key === 'X') {
         closeModal('resultModal');
+        closeModal('titleModal');
+        closeModal('hideModal');
       } else if (key === 'S') {
         e.preventDefault();
         openHideModal();
@@ -760,7 +817,7 @@
         updateViewerCount();
 
         conn.on('open', () => {
-          conn.send({ type: 'INIT', itemsText: itemsText.value });
+          conn.send({ type: 'INIT', itemsText: itemsText.value, title: customTitle });
         });
 
         conn.on('close', () => {
@@ -813,9 +870,26 @@
         const conn = peer.connect(roomId);
 
         conn.on('data', (data) => {
-          if (data.type === 'INIT' || data.type === 'UPDATE_ITEMS') {
+          if (data.type === 'INIT') {
+            itemsText.value = data.itemsText;
+            customTitle = data.title || "";
+            if (customTitle) {
+              customTitleDisplay.innerText = customTitle;
+              customTitleDisplay.style.display = 'block';
+            }
+            updateWheelFromText();
+          } else if (data.type === 'UPDATE_ITEMS') {
             itemsText.value = data.itemsText;
             updateWheelFromText();
+          } else if (data.type === 'UPDATE_TITLE') {
+            customTitle = data.title || "";
+            if (customTitle) {
+              customTitleDisplay.innerText = customTitle;
+              customTitleDisplay.style.display = 'block';
+            } else {
+              customTitleDisplay.innerText = '';
+              customTitleDisplay.style.display = 'none';
+            }
           } else if (data.type === 'SPIN') {
             const targetSegmentCenter = data.targetWinningIndex * ((2 * Math.PI) / items.length) + ((2 * Math.PI) / items.length) / 2;
             startSpinAnimation(data.finalRotation, items[data.targetWinningIndex]);
