@@ -468,9 +468,16 @@
   <script>
     const COLORS = ["#3b82f6", "#ef4444", "#84cc16", "#fef08a", "#e9d5ff", "#f9a8d4", "#f97316"];
     
-    // 🚫 黑名單：防止這些名字被抽中
-    const BLACKLIST = ["Mahon", "277"];
+    // 🚫 黑名單陣列（自動轉小寫進行嚴格比對）
+    const BLACKLIST = ["mahon", "277"];
     
+    // 檢查字串是否在黑名單中
+    function isBlacklisted(str) {
+      if (!str) return false;
+      const cleanStr = str.trim().toLowerCase();
+      return BLACKLIST.some(item => item.toLowerCase() === cleanStr);
+    }
+
     let items = [];
     let currentRotation = 0;
     let isSpinning = false;
@@ -610,7 +617,7 @@
       }
     }
 
-    // 旋轉邏輯（含極限隨機落點與黑名單過濾）
+    // 旋轉邏輯（含極限隨機落點與嚴格黑名單過濾）
     function spinWheel() {
       if (isViewer) {
         showToast("觀眾無法操作轉盤");
@@ -622,10 +629,10 @@
         return;
       }
       
-      // 1. 黑名單過濾：找出合法項目的索引
+      // 1. 黑名單過濾：找出所有非黑名單項目的索引
       const validIndices = items
         .map((item, index) => ({ item, index }))
-        .filter(obj => !BLACKLIST.includes(obj.item))
+        .filter(obj => !isBlacklisted(obj.item))
         .map(obj => obj.index);
 
       if (validIndices.length === 0) {
@@ -633,13 +640,14 @@
         return;
       }
 
-      // 2. 隨機抽選一位非黑名單中獎者
+      // 2. 從非黑名單項目中隨機挑選中獎者
       const randomIndex = Math.floor(Math.random() * validIndices.length);
       const targetWinningIndex = validIndices[randomIndex];
-      
+      const winnerName = items[targetWinningIndex];
+
       const segmentAngle = (2 * Math.PI) / items.length;
 
-      // 3. 計算極限邊緣落點 (保留微小安全邊界 0.005 弧度避免直接落在分割線上)
+      // 3. 計算極限邊緣落點
       const safeMargin = 0.005;
       const maxOffset = Math.max(0, (segmentAngle / 2) - safeMargin);
       const randomOffset = (Math.random() * 2 - 1) * maxOffset;
@@ -655,10 +663,10 @@
       }
       const finalRotation = currentRotation + deltaAngle + extraTurns;
 
-      startSpinAnimation(finalRotation, items[targetWinningIndex]);
+      startSpinAnimation(finalRotation, winnerName);
 
       if (isHost) {
-        broadcastState({ type: 'SPIN', winnerIndex: targetWinningIndex, winnerName: items[targetWinningIndex], finalRotation });
+        broadcastState({ type: 'SPIN', winnerName: winnerName, finalRotation: finalRotation });
       }
     }
 
@@ -689,7 +697,12 @@
           requestAnimationFrame(animate);
         } else {
           isSpinning = false;
-          showWinner(winnerText);
+          // 再次防護，確保絕不顯示黑名單文字
+          if (isBlacklisted(winnerText)) {
+            showToast("抽籤出現異常，請重新旋轉");
+          } else {
+            showWinner(winnerText);
+          }
         }
       }
 
@@ -722,7 +735,7 @@
 
     // 鍵盤快捷鍵
     document.addEventListener('keydown', (e) => {
-      if (isViewer) return; // 觀眾停用所有捷徑鍵
+      if (isViewer) return;
       if (document.activeElement === itemsText || document.activeElement.tagName === 'INPUT') {
         if (e.key === 'Escape') {
           itemsText.blur();
@@ -765,7 +778,6 @@
       document.getElementById('viewer-count-wrapper').style.display = 'none';
       document.getElementById('btnLiveTrigger').style.display = 'none';
 
-      // 禁用按鈕與輸入框
       document.getElementById('btnStart').classList.add('btn-disabled');
       document.getElementById('btnStart').onclick = null;
       document.getElementById('btnReset').classList.add('btn-disabled');
