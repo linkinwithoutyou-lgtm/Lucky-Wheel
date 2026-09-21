@@ -673,9 +673,9 @@
       // 4. 計算最終目標角度：中心點角度 + 大範圍隨機偏移角度
       const targetAngleAtPointer = -(targetWinningIndex * segmentAngle + segmentAngle / 2 + randomOffset);
   
-      // 確保順時針旋轉多圈 (5 ~ 7 圈)
+      // 確保順時針旋轉多圈 (8 ~ 10 圈)
       const currentMod = currentRotation % (2 * Math.PI);
-      const extraTurns = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI;
+      const extraTurns = (8 + Math.floor(Math.random() * 3)) * 2 * Math.PI;
   
       // 計算最終精準旋轉角度
       let deltaAngle = (targetAngleAtPointer - currentMod) % (2 * Math.PI);
