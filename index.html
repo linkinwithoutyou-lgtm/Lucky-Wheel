@@ -635,6 +635,7 @@
 
     // 開始旋轉 (修復 targetWinningIndex 變數重複宣告問題)
     // 開始旋轉 (新增指針隨機角度與防邊界落點)
+    // 開始旋轉 (加大角度偏移量)
     function spinWheel() {
       if (isSpinning) return;
       if (items.length === 0) {
@@ -648,7 +649,6 @@
         .filter(obj => !BLACKLIST.includes(obj.item))
         .map(obj => obj.index);
 
-      // 如果清單中的所有項目都在黑名單裡，則無法抽籤
       if (validIndices.length === 0) {
         showToast("清單中的項目皆無法被選中，無法抽籤！");
         return;
@@ -661,13 +661,16 @@
       // 計算每一個扇形的角度大小
       const segmentAngle = (2 * Math.PI) / items.length;
 
-      // 1. 設定邊界安全距離（避免指針剛好停在兩扇形中間的分隔線上，這裡取扇形寬度的 10%）
-      const safePadding = segmentAngle * 0.1; 
+      // 1. 保留極小的安全距離（只保留 3% 的寬度，避免剛好壓在線頭上）
+      const safePadding = segmentAngle * 0.03; 
 
-      // 2. 在安全範圍內計算隨機偏移量
-      const randomOffset = (Math.random() - 0.5) * (segmentAngle - safePadding * 2);
+      // 2. 計算最大可偏移半徑（讓指針能在扇形內部 94% 的大範圍內隨機落在任何位置）
+      const maxOffset = (segmentAngle / 2) - safePadding;
 
-      // 3. 計算目標角度：中心點角度 + 隨機偏移角度
+      // 3. 產生 -maxOffset 到 +maxOffset 之間的大範圍隨機偏移量
+      const randomOffset = (Math.random() * 2 - 1) * maxOffset;
+
+      // 4. 計算最終目標角度：中心點角度 + 大範圍隨機偏移角度
       const targetAngleAtPointer = -(targetWinningIndex * segmentAngle + segmentAngle / 2 + randomOffset);
   
       // 確保順時針旋轉多圈 (5 ~ 7 圈)
