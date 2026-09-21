@@ -125,9 +125,9 @@
       border-radius: 50%;
     }
 
-    /* 空白清單提示框 (類似圖示) */
+    /* 空白清單提示框 */
     .empty-state-card {
-      display: none;
+      display: flex;
       width: 440px;
       height: 240px;
       border: 1px solid #b0b0b0;
@@ -369,11 +369,11 @@
   <div class="container">
     <div class="wheel-wrapper">
       <!-- 轉盤元素 (清單非空時顯示) -->
-      <canvas id="wheelCanvas" width="450" height="450"></canvas>
-      <div class="pointer" id="pointerEl"></div>
-      <div class="center-btn" id="centerBtn" onclick="spinWheel()">按一下以旋轉</div>
+      <canvas id="wheelCanvas" width="450" height="450" style="display: none;"></canvas>
+      <div class="pointer" id="pointerEl" style="display: none;"></div>
+      <div class="center-btn" id="centerBtn" onclick="spinWheel()" style="display: none;">按一下以旋轉</div>
 
-      <!-- 名單空白提示框 (清單空白時顯示) -->
+      <!-- 名單空白提示框 (預設顯示) -->
       <div class="empty-state-card" id="emptyStateCard">
         <div class="empty-state-title">請輸入清單</div>
         <div class="empty-state-arrows">&rarr; &rarr; &rarr;</div>
@@ -389,7 +389,7 @@
         <button class="action-btn" onclick="openHideModal()">隱藏...</button>
       </div>
 
-      <!-- 快速鍵說明列 -->
+      <!-- 快捷鍵說明列 -->
       <div class="shortcuts-guide">
         <div class="shortcut-item"><span class="key-badge">SPACE</span> 旋轉</div>
         <div class="shortcut-item"><span class="key-badge">X</span> 關閉橫幅</div>
@@ -440,8 +440,6 @@
   <div id="toast"></div>
 
   <script>
-    // 預設清單
-    const DEFAULT_ITEMS = ["DD", "DDD", "VEV", "VEWE", "BEDBE", "DD", "DDD", "VEV", "VEWE", "BEDBE", "DD", "DDD", "VEV", "VEWE", "BEDBE"];
     const COLORS = ["#3b82f6", "#ef4444", "#84cc16", "#fef08a", "#e9d5ff", "#f9a8d4", "#f97316"];
 
     let items = [];
@@ -467,7 +465,7 @@
 
     // 初始化
     window.onload = () => {
-      itemsText.value = DEFAULT_ITEMS.join('\n');
+      itemsText.value = ""; // 預設清空名單
       updateWheelFromText();
 
       // 檢測 URL 是否包含直播房號 (觀眾模式)
@@ -636,10 +634,10 @@
       document.getElementById(modalId).style.display = 'none';
     }
 
-    // 重設名單
+    // 重設名單 (清空)
     function resetItems() {
       if (isSpinning) return;
-      itemsText.value = DEFAULT_ITEMS.join('\n');
+      itemsText.value = "";
       updateWheelFromText();
       showToast("已重設名單");
     }
