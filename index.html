@@ -1,688 +1,776 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>隨機抽籤輪盤 - Piliapp 風格</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- QR Code Generator Library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #ffffff;
-            color: #222222;
-        }
-        .btn-pili {
-            border-radius: 4px;
-            font-weight: 500;
-            transition: all 0.15s ease-in-out;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-        .btn-pili:active {
-            transform: translateY(1px);
-        }
-        kbd {
-            background-color: #f8f9fa;
-            border: 1px solid #ced4da;
-            border-radius: 3px;
-            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
-            color: #333;
-            display: inline-block;
-            font-size: 0.85em;
-            font-weight: 600;
-            line-height: 1;
-            padding: 2px 6px;
-            white-space: nowrap;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>隨機抽籤輪盤 - 線上隨機挑選名稱工具</title>
+  <!-- PeerJS 用於即時直播連線 (備援免伺服器架構) -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft JhengHei", sans-serif;
+      background-color: #fcfcfc;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    /* 上方直播橫幅 */
+    #live-bar {
+      display: none;
+      width: 100%;
+      background-color: #fef08a;
+      border-bottom: 1px solid #eab308;
+      padding: 8px 16px;
+      font-size: 14px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      z-index: 100;
+    }
+    #live-bar input {
+      padding: 2px 6px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      width: 260px;
+      font-size: 13px;
+      background: #fff;
+    }
+    .btn-sm {
+      padding: 2px 8px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .btn-sm:hover { background: #f0f0f0; }
+
+    /* 主標題區域 */
+    header {
+      margin-top: 20px;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      position: relative;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: #222;
+    }
+    .header-btns {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-main {
+      padding: 6px 16px;
+      font-size: 16px;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-start { background-color: #1677ff; }
+    .btn-start:hover { background-color: #0958d9; }
+    .btn-reset { background-color: #ff7875; }
+    .btn-reset:hover { background-color: #ff4d4f; }
+    .btn-live-trigger {
+      position: absolute;
+      left: -120px;
+      top: 5px;
+      background: #52c41a;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    /* 主要內容區（轉盤 + 編輯區） */
+    .container {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 30px;
+      width: 100%;
+      max-width: 1000px;
+      padding: 0 20px;
+    }
+
+    /* 左側輪盤容器 */
+    .wheel-wrapper {
+      position: relative;
+      width: 460px;
+      height: 460px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    canvas {
+      width: 450px;
+      height: 450px;
+      border-radius: 50%;
+    }
+    /* 右側指標 (紅色三角形) */
+    .pointer {
+      position: absolute;
+      right: 0px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0;
+      height: 0;
+      border-top: 16px solid transparent;
+      border-bottom: 16px solid transparent;
+      border-right: 32px solid #ff0000;
+      z-index: 10;
+      filter: drop-shadow(-2px 0px 2px rgba(0,0,0,0.3));
+    }
+    /* 中心按鈕 */
+    .center-btn {
+      position: absolute;
+      width: 220px;
+      height: 48px;
+      background-color: rgba(40, 50, 60, 0.85);
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      z-index: 20;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+    .center-btn:hover {
+      background-color: rgba(20, 30, 40, 0.95);
+    }
+    .center-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* 右側名單輸入框與選單 */
+    .controls-wrapper {
+      display: flex;
+      flex-direction: column;
+      width: 260px;
+      gap: 10px;
+    }
+    textarea {
+      width: 100%;
+      height: 380px;
+      border: 1px solid #a0a0a0;
+      padding: 8px;
+      font-size: 16px;
+      line-height: 1.4;
+      resize: vertical;
+      outline: none;
+      font-family: inherit;
+    }
+    .action-btns {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .action-btn {
+      flex: 1;
+      padding: 6px 0;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #444;
+      text-align: center;
+    }
+    .action-btn:hover { background-color: #f5f5f5; }
+
+    /* 快速鍵說明區 */
+    .shortcuts-guide {
+      margin-top: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+      color: #333;
+    }
+    .shortcut-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .key-badge {
+      border: 1px solid #999;
+      background: #fff;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+      min-width: 20px;
+      text-align: center;
+    }
+
+    /* 底部說明文字 */
+    .description-section {
+      max-width: 800px;
+      margin-top: 40px;
+      padding: 0 20px;
+      color: #555;
+      font-size: 14px;
+      line-height: 1.8;
+      text-align: justify;
+    }
+    .description-section p {
+      margin-bottom: 12px;
+    }
+
+    /* 彈窗 Modal 樣式 */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-card {
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 420px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      position: relative;
+    }
+    .modal-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #222;
+    }
+    .winner-display {
+      font-size: 28px;
+      font-weight: bold;
+      color: #1677ff;
+      text-align: center;
+      margin: 20px 0;
+      word-break: break-all;
+    }
+    .hide-list-container {
+      max-height: 250px;
+      overflow-y: auto;
+      border: 1px solid #eee;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+    .hide-item-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      border-bottom: 1px solid #fafafa;
+    }
+    .hide-item-row label {
+      cursor: pointer;
+      flex: 1;
+      font-size: 15px;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* 吐司小提示 */
+    #toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      display: none;
+      z-index: 2000;
+    }
+  </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-between p-2 sm:p-4 selection:bg-blue-100">
+<body>
 
-    <!-- Top Yellow Banner for Live Broadcast -->
-    <div id="liveBanner" class="w-full max-w-6xl bg-[#fef3c7] border border-[#fde68a] text-gray-800 text-sm px-4 py-2.5 rounded-md mb-4 flex flex-wrap items-center justify-between gap-2 shadow-sm hidden">
-        <div class="flex items-center flex-wrap gap-2 sm:gap-3">
-            <span class="inline-flex items-center font-bold text-gray-900">
-                <span id="hostDot" class="w-2.5 h-2.5 bg-green-500 rounded-full inline-block mr-1.5 animate-pulse"></span>
-                <span id="roleText">您是主持人</span>
-            </span>
-            <span class="text-gray-700">觀眾：<strong id="viewerCount">0</strong></span>
-            <span class="hidden sm:inline text-gray-600">把這個連結分享給觀眾：</span>
-            <div class="flex items-center bg-white border border-amber-300 rounded px-2 py-1 text-xs font-mono select-all">
-                <span id="shareUrlText" class="truncate max-w-[200px] sm:max-w-[300px]">https://pili.app/wh/4W0U9G</span>
-            </div>
-            <button onclick="copyShareUrl()" class="px-2.5 py-1 bg-white hover:bg-gray-50 border border-gray-300 text-xs font-medium rounded shadow-sm">複製</button>
-            <button onclick="showQRCodeModal()" class="px-2.5 py-1 bg-white hover:bg-gray-50 border border-gray-300 text-xs font-medium rounded shadow-sm">QR Code</button>
-            <button onclick="stopLiveStream()" class="px-2.5 py-1 bg-white hover:bg-red-50 text-red-600 border border-gray-300 text-xs font-medium rounded shadow-sm">停止</button>
-            <button onclick="alert('開啟直播後，觀眾點擊分享連結即可即時同步觀察您轉動輪盤過程！')" class="px-2 py-1 bg-white hover:bg-gray-50 border border-gray-300 text-xs font-medium rounded shadow-sm">?</button>
-        </div>
+  <!-- 上方直播橫幅 -->
+  <div idlive-bar id="live-bar">
+    <span style="color:#15803d; font-weight:bold;">🟢 您是主持人</span>
+    <span>觀眾：<strong id="viewer-count">0</strong></span>
+    <span>把這個連結分享給觀眾：</span>
+    <input type="text" id="share-url" readonly />
+    <button class="btn-sm" onclick="copyShareUrl()">複製</button>
+    <button class="btn-sm" onclick="showQRCode()">QR Code</button>
+    <button class="btn-sm" onclick="stopLive()">停止</button>
+    <button class="btn-sm" onclick="alert('觀眾開啟分享連結後，可以實時觀看您的轉盤旋轉過程與結果！')">?</button>
+  </div>
+
+  <!-- 主標題與按鈕 -->
+  <header>
+    <button class="btn-live-trigger" onclick="toggleLiveMode()">直播</button>
+    <h1>隨機抽籤輪盤</h1>
+    <div class="header-btns">
+      <button class="btn-main btn-start" onclick="spinWheel()">開始</button>
+      <button class="btn-main btn-reset" onclick="resetItems()">重設</button>
+    </div>
+  </header>
+
+  <!-- 主要轉盤與輸入區域 -->
+  <div class="container">
+    <div class="wheel-wrapper">
+      <canvas id="wheelCanvas" width="450" height="450"></canvas>
+      <div class="pointer"></div>
+      <div class="center-btn" id="centerBtn" onclick="spinWheel()">按一下以旋轉</div>
     </div>
 
-    <!-- Main Outer Container -->
-    <div class="w-full max-w-6xl flex-1 flex flex-col items-center">
-        
-        <!-- Live Stream Starter Button (Top Left Overlay) -->
-        <div class="w-full flex justify-between items-center mb-2">
-            <div>
-                <button id="startLiveBtn" onclick="initLiveStreamHost()" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-xs font-medium flex items-center gap-1.5 shadow-sm transition">
-                    <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-                    <i class="fa-solid fa-tower-broadcast"></i> 開啟直播 (觀眾同步觀看)
-                </button>
-            </div>
-            <div id="viewerStatusBadge" class="hidden text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-200 font-medium">
-                <i class="fa-solid fa-eye mr-1"></i> 您正在觀看主持人直播
-            </div>
-        </div>
+    <div class="controls-wrapper">
+      <textarea id="itemsText" placeholder="每行輸入一個名稱..." oninput="updateWheelFromText()"></textarea>
+      
+      <div class="action-btns">
+        <button class="action-btn" onclick="alert('已儲存目前標題設定！')">標題</button>
+        <button class="action-btn" onclick="document.getElementById('itemsText').focus()">編輯</button>
+        <button class="action-btn" onclick="openHideModal()">隱藏...</button>
+      </div>
 
-        <!-- Title and Main Action Buttons Header -->
-        <div class="relative w-full text-center my-2 sm:my-4 flex items-center justify-center gap-4">
-            <h1 class="text-2xl sm:text-4xl font-bold tracking-tight text-gray-900">隨機抽籤輪盤</h1>
-            <div class="flex items-center gap-2">
-                <button id="topSpinBtn" onclick="spinWheel()" class="btn-pili px-5 py-1.5 bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-semibold text-sm sm:text-base">
-                    開始
-                </button>
-                <button onclick="resetWheel()" class="btn-pili px-5 py-1.5 bg-[#fecdd3] hover:bg-[#f43f5e] hover:text-white text-[#9f1239] font-semibold text-sm sm:text-base">
-                    重設
-                </button>
-            </div>
-        </div>
-
-        <!-- Center Grid: Wheel on Left, Textarea on Right -->
-        <div class="w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start my-4">
-            
-            <!-- Left Side: Wheel Container -->
-            <div class="lg:col-span-7 flex flex-col items-center justify-center relative">
-                <!-- Wheel Canvas Wrap -->
-                <div class="relative w-full max-w-[480px] aspect-square flex items-center justify-center">
-                    
-                    <!-- Right Side Pointer Triangle (Points to winning segment) -->
-                    <div class="absolute right-[-12px] top-1/2 -translate-y-1/2 z-20 pointer-events-none drop-shadow">
-                        <div class="w-0 h-0 border-y-[14px] border-y-transparent border-r-[26px] border-r-red-600"></div>
-                    </div>
-
-                    <!-- Canvas -->
-                    <canvas id="wheelCanvas" width="800" height="800" class="w-full h-full cursor-pointer rounded-full"></canvas>
-
-                    <!-- Center Pill Spin Button -->
-                    <button id="centerPillBtn" onclick="handleCenterPillClick()" class="absolute z-10 px-6 py-2.5 bg-[#2d3748]/90 hover:bg-[#1a202c] text-white font-bold text-base sm:text-lg rounded-full border-2 border-white/80 shadow-lg backdrop-blur-sm transition active:scale-95 select-none">
-                        按一下以旋轉
-                    </button>
-                </div>
-            </div>
-
-            <!-- Right Side: Text Area & Controls -->
-            <div class="lg:col-span-5 flex flex-col gap-3">
-                <textarea id="entriesTextarea" class="w-full h-[360px] p-3 text-base border-2 border-gray-400 rounded focus:outline-none focus:border-blue-600 font-sans leading-relaxed resize-y shadow-inner" oninput="onEntriesInputChange()"></textarea>
-
-                <!-- Action buttons below textarea -->
-                <div class="flex items-center justify-between gap-2">
-                    <button onclick="setTitlePrompt()" class="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 text-sm font-medium rounded shadow-sm">
-                        標題
-                    </button>
-                    <button onclick="focusTextarea()" class="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 text-sm font-medium rounded shadow-sm">
-                        編輯
-                    </button>
-                    <button onclick="openHideModal()" class="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 text-sm font-medium rounded shadow-sm">
-                        隱藏...
-                    </button>
-                </div>
-
-                <!-- Keyboard Shortcuts List -->
-                <div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700 space-y-2">
-                    <div class="flex items-center gap-2"><kbd>SPACE</kbd> <span>旋轉</span></div>
-                    <div class="flex items-center gap-2"><kbd>X</kbd> <span>關閉橫幅</span></div>
-                    <div class="flex items-center gap-2"><kbd>S</kbd> <span>隱藏選取的項目</span></div>
-                    <div class="flex items-center gap-2"><kbd>R</kbd> <span>重設</span></div>
-                    <div class="flex items-center gap-2"><kbd>E</kbd> <span>編輯</span></div>
-                    <div class="flex items-center gap-2"><kbd>F</kbd> <span>全螢幕</span></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bottom Explanation Text -->
-        <div class="w-full my-8 text-xs sm:text-sm text-gray-600 leading-relaxed border-t border-gray-200 pt-6 space-y-4 max-w-5xl">
-            <p>
-                這是一個線上工具，可以隨機挑選名稱或物品。它也稱為隨機名稱選擇器，名稱輪，或在線輪盤賭。有時候，人們很難做出決定。然後製作現有選項或候選項的清單，然後從中隨機選取一個選項。在這種情況下，您可以使用我們的工具來做出決定。簡單又有趣。您可以修改文本區域中的名稱，每行放一個名稱。名稱將繪製在圓圈上。只需點擊圓形滾輪，它就會開始旋轉幾秒鐘。結果是隨機選取清單中的一個名稱。如果您使用桌面，我們也提供方便的快捷鍵。
-            </p>
-            <p>
-                當你開始旋轉（點擊）時會發生什麼？此頁面上的程序將通過本地 javascript api 生成一個真正隨機的數字，並計算此數字以指向其中一個名稱。然後，圓形滾輪開始使用 CSS3-2D 方法旋轉。
-            </p>
-        </div>
+      <!-- 快捷鍵說明列 -->
+      <div class="shortcuts-guide">
+        <div class="shortcut-item"><span class="key-badge">SPACE</span> 旋轉</div>
+        <div class="shortcut-item"><span class="key-badge">X</span> 關閉橫幅</div>
+        <div class="shortcut-item"><span class="key-badge">S</span> 隱藏選取的項目</div>
+        <div class="shortcut-item"><span class="key-badge">R</span> 重設</div>
+        <div class="shortcut-item"><span class="key-badge">E</span> 編輯</div>
+        <div class="shortcut-item"><span class="key-badge">F</span> 全螢幕</div>
+      </div>
     </div>
+  </div>
 
-    <!-- Winner Result Modal Banner -->
-    <div id="winnerModal" class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-lg p-6 max-w-sm w-full text-center shadow-2xl border border-gray-200 transform transition-all">
-            <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">抽籤結果</h3>
-            <div id="winnerNameDisplay" class="text-3xl font-extrabold text-blue-600 my-4 break-words">
-                -
-            </div>
-            <div class="flex justify-center gap-3 mt-6">
-                <button onclick="closeWinnerModal(); spinWheel();" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-800 text-sm font-semibold rounded shadow-sm">
-                    再轉一次
-                </button>
-                <button onclick="closeWinnerModal()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded shadow">
-                    確定 (X)
-                </button>
-            </div>
-        </div>
+  <!-- 底部說明文字 -->
+  <div class="description-section">
+    <p>這是一個線上工具，可以隨機挑選名稱或物品。它也稱為隨機名稱選擇器，名稱輪，或在線輪盤賭。有時候，人們很難做出決定。然後製作現有選項或候選項的清單，然後從中隨機選取一個選項。在這種情況下，您可以使用我們的工具來做出決定。簡單又有趣。您可以修改文本區域中的名稱，每行放一個名稱。名稱將繪製在圓圈上。只需點擊圓形滾輪，它就會開始旋轉幾秒鐘。結果是隨機選取清單中的一個名稱。如果您使用桌面，我們也提供方便的快捷鍵。</p>
+    <p>當你開始旋轉（點擊）時會發生什麼？此頁面上的程序將通過本地 javascript api 生成一個真正隨機的數字，並計算此數字以指向其中一個名稱。然後，圓形滾輪開始使用 CSS3-2D 方法旋轉。</p>
+  </div>
+
+  <!-- 抽中結果 Modal -->
+  <div class="modal-overlay" id="resultModal">
+    <div class="modal-card">
+      <div class="modal-title">抽籤結果</div>
+      <div class="winner-display" id="winnnerText">-</div>
+      <div class="modal-footer">
+        <button class="btn-main btn-start" style="padding:6px 12px; font-size:14px;" onclick="closeModal('resultModal'); spinWheel();">再轉一次</button>
+        <button class="btn-sm" style="padding:6px 12px;" onclick="closeModal('resultModal')">確定 (X)</button>
+      </div>
     </div>
+  </div>
 
-    <!-- Manual Hide Items Selection Modal -->
-    <div id="hideItemsModal" class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-lg p-5 max-w-md w-full shadow-2xl border border-gray-200 flex flex-col max-h-[85vh]">
-            <div class="flex justify-between items-center border-b pb-3 mb-3">
-                <h3 class="text-lg font-bold text-gray-800">選擇要隱藏的項目</h3>
-                <button onclick="closeHideModal()" class="text-gray-400 hover:text-gray-700 text-xl font-bold">&times;</button>
-            </div>
-            
-            <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
-                <span>勾選您想要從輪盤中隱藏或刪除的名稱：</span>
-                <div class="space-x-2">
-                    <button onclick="toggleSelectAllHideItems(true)" class="text-blue-600 hover:underline">全選</button>
-                    <button onclick="toggleSelectAllHideItems(false)" class="text-blue-600 hover:underline">取消全選</button>
-                </div>
-            </div>
-
-            <!-- Checkbox List Container -->
-            <div id="hideItemsCheckboxList" class="flex-1 overflow-y-auto border border-gray-200 rounded p-3 space-y-2 my-2 max-h-[320px] bg-gray-50">
-                <!-- Checkboxes injected dynamically -->
-            </div>
-
-            <div class="flex justify-end gap-2 pt-3 border-t mt-2">
-                <button onclick="closeHideModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 text-sm font-medium rounded">
-                    取消
-                </button>
-                <button onclick="applyHideSelectedItems()" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded shadow">
-                    確認隱藏
-                </button>
-            </div>
-        </div>
+  <!-- 隱藏項目勾選 Modal -->
+  <div class="modal-overlay" id="hideModal">
+    <div class="modal-card">
+      <div class="modal-title">選擇要隱藏的項目</div>
+      <div style="margin-bottom: 8px; font-size: 13px;">
+        <a href="#" onclick="selectAllHide(true); return false;" style="color:#1677ff; margin-right:10px;">全選</a>
+        <a href="#" onclick="selectAllHide(false); return false;" style="color:#1677ff;">取消全選</a>
+      </div>
+      <div class="hide-list-container" id="hideListContainer">
+        <!-- 動態渲染選項 -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm" onclick="closeModal('hideModal')">取消</button>
+        <button class="btn-main btn-start" style="padding:6px 12px; font-size:14px;" onclick="confirmHideItems()">確認隱藏</button>
+      </div>
     </div>
+  </div>
 
-    <!-- QR Code Modal -->
-    <div id="qrModal" class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-lg p-6 max-w-xs w-full text-center shadow-2xl relative">
-            <button onclick="document.getElementById('qrModal').classList.add('hidden')" class="absolute top-2 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold">&times;</button>
-            <h3 class="text-base font-bold text-gray-800 mb-4">觀眾直播 QR Code</h3>
-            <div id="qrcodeCanvas" class="flex justify-center my-2 p-2 bg-white border rounded"></div>
-            <p class="text-xs text-gray-500 mt-2">掃描 QR Code 即可參與即時同步觀看</p>
-        </div>
-    </div>
+  <div id="toast"></div>
 
-    <!-- Secret Feedback Toast Notification -->
-    <div id="secretToast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-900/90 text-white text-xs rounded-full shadow-lg pointer-events-none opacity-0 transition-opacity duration-300">
-        <span id="secretToastText">秘密模式已更新</span>
-    </div>
+  <script>
+    // 預設清單
+    const DEFAULT_ITEMS = ["DD", "DDD", "VEV", "VEWE", "BEDBE", "DD", "DDD", "VEV", "VEWE", "BEDBE", "DD", "DDD", "VEV", "VEWE", "BEDBE"];
+    const COLORS = ["#3b82f6", "#ef4444", "#84cc16", "#fef08a", "#e9d5ff", "#f9a8d4", "#f97316"];
 
-    <!-- Firebase Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    let items = [];
+    let currentRotation = 0; // 當前旋轉角度 (rad)
+    let isSpinning = false;
+    
+    // 隱藏限制邏輯 (Mahon 限制開關)
+    let secretConstraintActive = true; 
+    let centerClickCount = 0;
+    let clickTimer = null;
 
-        // Firebase Setup
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'wheel-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : { apiKey: "demo", projectId: "demo-wheel" };
+    // 直播 PeerJS 相關變數
+    let peer = null;
+    let liveConnections = [];
+    let isHost = false;
 
-        let app, db, auth;
-        let isFirebaseActive = false;
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    const itemsText = document.getElementById('itemsText');
+    const centerBtn = document.getElementById('centerBtn');
 
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            
-            if (typeof __initial_auth_token !== 'undefined') {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-            isFirebaseActive = true;
-        } catch (e) {
-            console.warn("Firebase initialized in standalone local mode.", e);
+    // 初始化
+    window.onload = () => {
+      itemsText.value = DEFAULT_ITEMS.join('\n');
+      updateWheelFromText();
+
+      // 檢測 URL 是否包含直播房號 (觀眾模式)
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomId = urlParams.get('room');
+      if (roomId) {
+        initViewerMode(roomId);
+      }
+    };
+
+    // 音效模擬
+    function playClickSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.04);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.04);
+      } catch(e){}
+    }
+
+    // 從 Textarea 更新清單與繪製輪盤
+    function updateWheelFromText() {
+      const raw = itemsText.value.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+      items = raw.length > 0 ? raw : ["無選項"];
+      drawWheel();
+      if(isHost) broadcastState({ type: 'UPDATE_ITEMS', itemsText: itemsText.value });
+    }
+
+    // 繪製輪盤
+    function drawWheel() {
+      const numSegments = items.length;
+      const arcSize = (2 * Math.PI) / numSegments;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = canvas.width / 2 - 5;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < numSegments; i++) {
+        const angle = currentRotation + i * arcSize;
+        ctx.beginPath();
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, angle, angle + arcSize);
+        ctx.lineTo(centerX, centerY);
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 繪製文字
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(angle + arcSize / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#000000";
+        ctx.font = "bold 18px sans-serif";
+        ctx.fillText(items[i], radius - 20, 6);
+        ctx.restore();
+      }
+    }
+
+    // 開始旋轉
+    function spinWheel() {
+      if (isSpinning || items.length === 0) return;
+
+      // 隨機計算目標獲勝索引 (包含 Mahon 秘密限制)
+      let validIndices = [];
+      items.forEach((item, index) => {
+        if (!secretConstraintActive || !item.toLowerCase().includes('mahon')) {
+          validIndices.push(index);
+        }
+      });
+
+      // 如果全都是 Mahon 且限制開啟，預設允許
+      if (validIndices.length === 0) validIndices = items.map((_, i) => i);
+
+      const targetWinningIndex = validIndices[Math.floor(Math.random() * validIndices.length)];
+      
+      // 計算旋轉角度
+      const segmentAngle = (2 * Math.PI) / items.length;
+      // 右側 0 弧度為 3 點鐘方向，指標在右側，所以對齊 0
+      const targetSegmentCenter = targetWinningIndex * segmentAngle + segmentAngle / 2;
+      
+      const extraTurns = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI; // 5~7 圈
+      const finalRotation = extraTurns + (2 * Math.PI - targetSegmentCenter);
+
+      startSpinAnimation(finalRotation, items[targetWinningIndex]);
+
+      if (isHost) {
+        broadcastState({ type: 'SPIN', targetWinningIndex, finalRotation });
+      }
+    }
+
+    // 旋轉動畫
+    function startSpinAnimation(targetRotation, winnerText) {
+      isSpinning = true;
+      const startRotation = currentRotation % (2 * Math.PI);
+      const totalDelta = targetRotation;
+      const duration = 4500; // 4.5秒
+      const startTime = performance.now();
+      let lastTickSegment = -1;
+
+      function animate(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // Easing cubic-bezier (Ease Out)
+        const easeOut = 1 - Math.pow(1 - progress, 4);
+
+        currentRotation = startRotation + totalDelta * easeOut;
+        drawWheel();
+
+        // Tick 音效發聲判定
+        const segmentAngle = (2 * Math.PI) / items.length;
+        const currentSegment = Math.floor((currentRotation % (2 * Math.PI)) / segmentAngle);
+        if (currentSegment !== lastTickSegment) {
+          playClickSound();
+          lastTickSegment = currentSegment;
         }
 
-        // --- Application State ---
-        const defaultItems = [
-            "DD", "DDD", "VEV", "VEWE", "BEDBE", 
-            "DD", "DDD", "VEV", "VEWE", "BEDBE", 
-            "DD", "DDD", "VEV", "VEWE", "BEDBE"
-        ];
-        
-        let items = [...defaultItems];
-        let isSpinning = false;
-        let currentRotation = 0; // Radians
-        let selectedWinner = null;
-        let selectedWinnerIndex = -1;
-
-        // Colors palette matching Piliapp visual aesthetic
-        const colorPalette = [
-            '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
-            '#ec4899', '#f97316', '#06b6d4', '#84cc16', '#d97706'
-        ];
-
-        // Secret restriction logic (Mahon restriction active by default)
-        let secretRestrictionActive = true;
-        let centerClickCounter = 0;
-        let centerClickTimer = null;
-
-        // Live streaming state
-        let isHost = false;
-        let isViewer = false;
-        let roomId = null;
-        let roomUnsubscribe = null;
-
-        // DOM Handles
-        const canvas = document.getElementById('wheelCanvas');
-        const ctx = canvas.getContext('2d');
-        const textarea = document.getElementById('entriesTextarea');
-        const winnerModal = document.getElementById('winnerModal');
-        const winnerDisplay = document.getElementById('winnerNameDisplay');
-
-        // --- Core Drawing Logic ---
-        function drawWheel() {
-            const numSlices = items.length;
-            const width = canvas.width;
-            const height = canvas.height;
-            const centerX = width / 2;
-            const centerY = height / 2;
-            const radius = width / 2 - 10;
-
-            ctx.clearRect(0, 0, width, height);
-
-            if (numSlices === 0) {
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = '#f3f4f6';
-                ctx.fill();
-                ctx.fillStyle = '#9ca3af';
-                ctx.font = 'bold 30px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('請輸入選項名單', centerX, centerY);
-                ctx.restore();
-                return;
-            }
-
-            const sliceAngle = (2 * Math.PI) / numSlices;
-
-            ctx.save();
-            ctx.translate(centerX, centerY);
-            ctx.rotate(currentRotation);
-
-            for (let i = 0; i < numSlices; i++) {
-                const angle = i * sliceAngle;
-
-                // Slice sector
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.arc(0, 0, radius, angle, angle + sliceAngle);
-                ctx.closePath();
-                ctx.fillStyle = colorPalette[i % colorPalette.length];
-                ctx.fill();
-
-                // Slice border line
-                ctx.lineWidth = 1.5;
-                ctx.strokeStyle = '#ffffff';
-                ctx.stroke();
-
-                // Text
-                ctx.save();
-                ctx.rotate(angle + sliceAngle / 2);
-                ctx.textAlign = 'right';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#000000';
-                ctx.font = 'bold 28px sans-serif';
-
-                let text = items[i];
-                if (text.length > 12) text = text.substring(0, 11) + '...';
-
-                // Radial text rendering outwards
-                ctx.fillText(text, radius - 25, 0);
-                ctx.restore();
-            }
-
-            ctx.restore();
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          isSpinning = false;
+          showWinner(winnerText);
         }
+      }
 
-        // --- Winning Logic with Mahon Restriction ---
-        function calculateWinningIndex() {
-            if (items.length === 0) return -1;
+      requestAnimationFrame(animate);
+    }
 
-            if (!secretRestrictionActive) {
-                return Math.floor(Math.random() * items.length);
-            }
+    // 顯示獲勝結果
+    function showWinner(name) {
+      document.getElementById('winnnerText').innerText = name;
+      document.getElementById('resultModal').style.display = 'flex';
+    }
 
-            // Filter out indices containing 'Mahon'
-            const validIndices = [];
-            items.forEach((item, index) => {
-                if (!item.toLowerCase().includes('mahon')) {
-                    validIndices.push(index);
-                }
-            });
+    function closeModal(modalId) {
+      document.getElementById(modalId).style.display = 'none';
+    }
 
-            if (validIndices.length === 0) {
-                // If all items are Mahon, fallback to purely random
-                return Math.floor(Math.random() * items.length);
-            }
+    // 重設名單
+    function resetItems() {
+      if (isSpinning) return;
+      itemsText.value = DEFAULT_ITEMS.join('\n');
+      updateWheelFromText();
+      showToast("已重設名單");
+    }
 
-            const chosen = Math.floor(Math.random() * validIndices.length);
-            return validIndices[chosen];
+    // 隱藏項目 Modal 控制
+    function openHideModal() {
+      const container = document.getElementById('hideListContainer');
+      container.innerHTML = '';
+      
+      const uniqueItems = Array.from(new Set(items));
+      uniqueItems.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'hide-item-row';
+        div.innerHTML = `
+          <input type="checkbox" id="chk_${idx}" value="${item}">
+          <label for="chk_${idx}">${item}</label>
+        `;
+        container.appendChild(div);
+      });
+
+      document.getElementById('hideModal').style.display = 'flex';
+    }
+
+    function selectAllHide(status) {
+      const checkboxes = document.querySelectorAll('#hideListContainer input[type="checkbox"]');
+      checkboxes.forEach(cb => cb.checked = status);
+    }
+
+    function confirmHideItems() {
+      const checkboxes = document.querySelectorAll('#hideListContainer input[type="checkbox"]:checked');
+      const toHide = Array.from(checkboxes).map(cb => cb.value);
+
+      if (toHide.length > 0) {
+        const remaining = items.filter(item => !toHide.includes(item));
+        itemsText.value = remaining.join('\n');
+        updateWheelFromText();
+        showToast(`已隱藏 ${toHide.length} 個選項`);
+      }
+
+      closeModal('hideModal');
+    }
+
+    // 隱藏秘密限制開關（三擊中央按鈕）
+    centerBtn.addEventListener('click', () => {
+      centerClickCount++;
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => {
+        if (centerClickCount >= 3) {
+          secretConstraintActive = !secretConstraintActive;
+          showToast(`秘密模式已${secretConstraintActive ? '開啟' : '關閉'}`);
         }
+        centerClickCount = 0;
+      }, 400);
+    });
 
-        // --- Wheel Spin Logic ---
-        window.spinWheel = function() {
-            if (isSpinning || items.length === 0) return;
+    // 吐司訊息
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 2000);
+    }
 
-            const targetIndex = calculateWinningIndex();
-            if (targetIndex === -1) return;
+    // 鍵盤快捷鍵監聽
+    document.addEventListener('keydown', (e) => {
+      // 若正在輸入文字區域則無視某些快捷鍵
+      if (document.activeElement === itemsText && e.key !== 'Escape') return;
 
-            isSpinning = true;
-            selectedWinnerIndex = targetIndex;
-            selectedWinner = items[targetIndex];
+      const key = e.key.toUpperCase();
+      if (e.code === 'Space') {
+        e.preventDefault();
+        spinWheel();
+      } else if (key === 'X') {
+        closeModal('resultModal');
+      } else if (key === 'S') {
+        e.preventDefault();
+        openHideModal();
+      } else if (key === 'R') {
+        resetItems();
+      } else if (key === 'E') {
+        e.preventDefault();
+        itemsText.focus();
+      } else if (key === 'F') {
+        toggleFullScreen();
+      }
+    });
 
-            const durationSec = 5;
-            const numSlices = items.length;
-            const sliceAngle = (2 * Math.PI) / numSlices;
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(()=>{});
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
 
-            // Pointer is fixed at Right Side (Angle = 0)
-            const targetSliceCenter = targetIndex * sliceAngle + (sliceAngle / 2);
-            let targetRotationAngle = (2 * Math.PI) - targetSliceCenter;
+    /* ---------------- 直播功能 logic (PeerJS P2P 實時廣播) ---------------- */
+    function toggleLiveMode() {
+      if (isHost) {
+        stopLive();
+        return;
+      }
+      
+      const randomRoomId = 'wheel-' + Math.random().toString(36).substring(2, 8);
+      peer = new Peer(randomRoomId);
 
-            let currentNormalized = currentRotation % (2 * Math.PI);
-            if (currentNormalized < 0) currentNormalized += 2 * Math.PI;
+      peer.on('open', (id) => {
+        isHost = true;
+        const liveUrl = window.location.origin + window.location.pathname + '?room=' + id;
+        document.getElementById('share-url').value = liveUrl;
+        document.getElementById('live-bar').style.display = 'flex';
+        showToast("直播已開啟！");
+      });
 
-            const extraFullRounds = (6 + Math.floor(Math.random() * 4)) * 2 * Math.PI;
-            let deltaRotation = (targetRotationAngle - currentNormalized);
-            if (deltaRotation < 0) deltaRotation += 2 * Math.PI;
-            deltaRotation += extraFullRounds;
+      peer.on('connection', (conn) => {
+        liveConnections.push(conn);
+        updateViewerCount();
 
-            const startRotation = currentRotation;
-            const startTime = performance.now();
-
-            function animate(currentTime) {
-                const elapsed = (currentTime - startTime) / 1000;
-                const progress = Math.min(elapsed / durationSec, 1);
-
-                // Cubic Out deceleration easing
-                const easeOut = 1 - Math.pow(1 - progress, 3);
-                currentRotation = startRotation + (deltaRotation * easeOut);
-                
-                drawWheel();
-
-                if (isHost && isFirebaseActive) {
-                    syncStateToFirebase();
-                }
-
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
-                } else {
-                    isSpinning = false;
-                    showWinnerModal(selectedWinner);
-                    if (isHost && isFirebaseActive) {
-                        syncStateToFirebase(true);
-                    }
-                }
-            }
-
-            requestAnimationFrame(animate);
-        };
-
-        // --- Center Pill Triple Click Secret Trigger ---
-        window.handleCenterPillClick = function() {
-            centerClickCounter++;
-            clearTimeout(centerClickTimer);
-
-            if (centerClickCounter >= 3) {
-                centerClickCounter = 0;
-                secretRestrictionActive = !secretRestrictionActive;
-                showSecretToast(secretRestrictionActive ? "模式已切換 (開)" : "模式已切換 (關)");
-                return;
-            }
-
-            centerClickTimer = setTimeout(() => {
-                centerClickCounter = 0;
-                window.spinWheel();
-            }, 300);
-        };
-
-        function showSecretToast(msg) {
-            const toast = document.getElementById('secretToast');
-            document.getElementById('secretToastText').innerText = msg;
-            toast.classList.remove('opacity-0');
-            setTimeout(() => {
-                toast.classList.add('opacity-0');
-            }, 1200);
-        }
-
-        // --- Entries & UI Functions ---
-        window.onEntriesInputChange = function() {
-            const raw = textarea.value;
-            items = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-            drawWheel();
-            if (isHost && isFirebaseActive) {
-                syncStateToFirebase();
-            }
-        };
-
-        window.resetWheel = function() {
-            items = [...defaultItems];
-            textarea.value = items.join('\n');
-            currentRotation = 0;
-            drawWheel();
-            if (isHost && isFirebaseActive) {
-                syncStateToFirebase();
-            }
-        };
-
-        window.focusTextarea = function() {
-            textarea.focus();
-        };
-
-        window.setTitlePrompt = function() {
-            const title = prompt("請輸入轉盤標題：", "隨機抽籤輪盤");
-            if (title) {
-                document.querySelector('h1').innerText = title;
-            }
-        };
-
-        window.showWinnerModal = function(name) {
-            winnerDisplay.innerText = name;
-            winnerModal.classList.remove('hidden');
-        };
-
-        window.closeWinnerModal = function() {
-            winnerModal.classList.add('hidden');
-        };
-
-        // --- Manual Hide Items Modal Logic ---
-        window.openHideModal = function() {
-            const container = document.getElementById('hideItemsCheckboxList');
-            container.innerHTML = '';
-
-            if (items.length === 0) {
-                container.innerHTML = '<div class="text-center text-gray-400 py-4 text-sm">目前沒有可隱藏的項目</div>';
-            } else {
-                items.forEach((item, index) => {
-                    const row = document.createElement('label');
-                    row.className = 'flex items-center gap-3 p-2 bg-white rounded border border-gray-200 cursor-pointer hover:bg-blue-50/50 transition';
-                    row.innerHTML = `
-                        <input type="checkbox" value="${index}" class="hide-checkbox w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-                        <span class="text-sm font-medium text-gray-800 break-all">${item}</span>
-                    `;
-                    container.appendChild(row);
-                });
-            }
-
-            document.getElementById('hideItemsModal').classList.remove('hidden');
-        };
-
-        window.closeHideModal = function() {
-            document.getElementById('hideItemsModal').classList.add('hidden');
-        };
-
-        window.toggleSelectAllHideItems = function(select) {
-            const checkboxes = document.querySelectorAll('.hide-checkbox');
-            checkboxes.forEach(cb => cb.checked = select);
-        };
-
-        window.applyHideSelectedItems = function() {
-            const checkboxes = document.querySelectorAll('.hide-checkbox:checked');
-            const indicesToRemove = Array.from(checkboxes).map(cb => parseInt(cb.value, 10));
-
-            if (indicesToRemove.length > 0) {
-                // Filter out checked indices
-                items = items.filter((_, index) => !indicesToRemove.includes(index));
-                textarea.value = items.join('\n');
-                drawWheel();
-                if (isHost && isFirebaseActive) {
-                    syncStateToFirebase();
-                }
-            }
-
-            closeHideModal();
-        };
-
-        // --- Live Broadcast Sync System (Firebase) ---
-        window.initLiveStreamHost = async function() {
-            if (!isFirebaseActive) {
-                alert("即時直播功能需在網絡連線狀態下使用！");
-                return;
-            }
-            isHost = true;
-            roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-            
-            const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-            document.getElementById('shareUrlText').innerText = shareUrl;
-            document.getElementById('liveBanner').classList.remove('hidden');
-            document.getElementById('startLiveBtn').classList.add('hidden');
-
-            syncStateToFirebase();
-            listenToRoomUpdates();
-        };
-
-        function syncStateToFirebase(showModal = false) {
-            if (!isHost || !db || !roomId) return;
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
-            setDoc(roomRef, {
-                items: items,
-                currentRotation: currentRotation,
-                isSpinning: isSpinning,
-                selectedWinner: selectedWinner,
-                showModal: showModal,
-                updatedAt: Date.now()
-            }, { merge: true });
-        }
-
-        function listenToRoomUpdates() {
-            if (!db || !roomId) return;
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
-            
-            roomUnsubscribe = onSnapshot(roomRef, (snapshot) => {
-                if (!snapshot.exists()) return;
-                const data = snapshot.data();
-
-                if (isViewer) {
-                    items = data.items || [];
-                    textarea.value = items.join('\n');
-                    currentRotation = data.currentRotation || 0;
-                    drawWheel();
-
-                    if (data.showModal && data.selectedWinner) {
-                        showWinnerModal(data.selectedWinner);
-                    } else if (!data.showModal) {
-                        closeWinnerModal();
-                    }
-                }
-            }, (err) => console.error(err));
-        }
-
-        window.copyShareUrl = function() {
-            const url = document.getElementById('shareUrlText').innerText;
-            const temp = document.createElement('textarea');
-            temp.value = url;
-            document.body.appendChild(temp);
-            temp.select();
-            document.execCommand('copy');
-            document.body.removeChild(temp);
-            alert('已複製分享連結！');
-        };
-
-        window.showQRCodeModal = function() {
-            const qrContainer = document.getElementById('qrcodeCanvas');
-            qrContainer.innerHTML = '';
-            const url = document.getElementById('shareUrlText').innerText;
-            new QRCode(qrContainer, {
-                text: url,
-                width: 160,
-                height: 160
-            });
-            document.getElementById('qrModal').classList.remove('hidden');
-        };
-
-        window.stopLiveStream = function() {
-            isHost = false;
-            isViewer = false;
-            if (roomUnsubscribe) roomUnsubscribe();
-            document.getElementById('liveBanner').classList.add('hidden');
-            document.getElementById('startLiveBtn').classList.remove('hidden');
-        };
-
-        // --- Check Viewer Mode From URL ---
-        function checkViewerMode() {
-            const params = new URLSearchParams(window.location.search);
-            const room = params.get('room');
-            if (room) {
-                isViewer = true;
-                roomId = room;
-                document.getElementById('viewerStatusBadge').classList.remove('hidden');
-                document.getElementById('startLiveBtn').classList.add('hidden');
-                listenToRoomUpdates();
-            }
-        }
-
-        // --- Keyboard Shortcuts Listener ---
-        window.addEventListener('keydown', (e) => {
-            // Ignore shortcut keys if user is currently typing inside textarea
-            if (document.activeElement === textarea) return;
-
-            const key = e.key.toUpperCase();
-            if (e.code === 'Space' || key === ' ') {
-                e.preventDefault();
-                window.spinWheel();
-            } else if (key === 'X') {
-                closeWinnerModal();
-                closeHideModal();
-                document.getElementById('liveBanner').classList.add('hidden');
-            } else if (key === 'S') {
-                openHideModal();
-            } else if (key === 'R') {
-                resetWheel();
-            } else if (key === 'E') {
-                e.preventDefault();
-                focusTextarea();
-            } else if (key === 'F') {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {});
-                } else {
-                    document.exitFullscreen();
-                }
-            }
+        conn.on('open', () => {
+          // 初始化傳送現有狀態給新觀眾
+          conn.send({ type: 'INIT', itemsText: itemsText.value });
         });
 
-        // --- Initial Onload Setup ---
-        window.onload = function() {
-            textarea.value = items.join('\n');
-            drawWheel();
-            checkViewerMode();
-        };
-    </script>
+        conn.on('close', () => {
+          liveConnections = liveConnections.filter(c => c !== conn);
+          updateViewerCount();
+        });
+      });
+
+      peer.on('error', (err) => {
+        alert("直播連線建立失敗，請檢查網路設定。");
+      });
+    }
+
+    function stopLive() {
+      if (peer) peer.destroy();
+      liveConnections = [];
+      isHost = false;
+      document.getElementById('live-bar').style.display = 'none';
+      showToast("直播已結束");
+    }
+
+    function updateViewerCount() {
+      document.getElementById('viewer-count').innerText = liveConnections.length;
+    }
+
+    function broadcastState(data) {
+      liveConnections.forEach(conn => {
+        if (conn.open) conn.send(data);
+      });
+    }
+
+    function copyShareUrl() {
+      const copyText = document.getElementById("share-url");
+      copyText.select();
+      document.execCommand("copy");
+      showToast("已複製直播連結！");
+    }
+
+    function showQRCode() {
+      const url = encodeURIComponent(document.getElementById("share-url").value);
+      window.open(`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${url}`, '_blank');
+    }
+
+    // 觀眾模式初始化
+    function initViewerMode(roomId) {
+      showToast("正在連線至主持人直播...");
+      peer = new Peer();
+
+      peer.on('open', () => {
+        const conn = peer.connect(roomId);
+
+        conn.on('data', (data) => {
+          if (data.type === 'INIT' || data.type === 'UPDATE_ITEMS') {
+            itemsText.value = data.itemsText;
+            updateWheelFromText();
+          } else if (data.type === 'SPIN') {
+            const targetSegmentCenter = data.targetWinningIndex * ((2 * Math.PI) / items.length) + ((2 * Math.PI) / items.length) / 2;
+            startSpinAnimation(data.finalRotation, items[data.targetWinningIndex]);
+          }
+        });
+
+        conn.on('open', () => {
+          showToast("已成功加入直播！");
+        });
+      });
+    }
+  </script>
 </body>
 </html>
